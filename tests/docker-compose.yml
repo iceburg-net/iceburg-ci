@@ -1,0 +1,10 @@
+---
+version: "3.9"
+
+services:
+  test:
+    image: alpine:3.14
+    environment:
+      FOO: bar
+    command: env
+    env_file: ./test.env

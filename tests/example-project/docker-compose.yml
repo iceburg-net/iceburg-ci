@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  ping-pong:
+    image: ping-pong:${PIPELINE_ID:-local-ci}
+    build: ./src/
+
+  test:
+    profiles: ["test"]
+    build: ./tests/
+    environment:
+      WAIT_HOSTS: "ping-pong:80"
+      TEST_URI: http://ping-pong/ping
+    depends_on:
+      - ping-pong
+    command: sh -c "/wait && bats tests/ping-pong.bats"
+    volumes:
+      - ./:/work

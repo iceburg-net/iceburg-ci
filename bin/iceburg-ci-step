@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+set -eo pipefail
+__ENTRY=$(basename "$0")
+readonly __ENTRY
+
+log(){ printf "[%-5s%s $__ENTRY] $*\\n" "${__ll:-INFO}" >&2; }
+die(){ __ll=ERROR log "$*"; exit 1; }
+dlog(){ __ll=DEBUG log "$*"; }
+
+[ $# -gt 0 ] || die "provide at least one step to execute"
+
+export COMPOSE_PROJECT_NAME="${PROJECT_NAME:-$(basename "$PROJECT_ROOT")}-${PIPELINE_ID}"
+export DOCKER_CONFIG="${DOCKER_CONFIG:-$HOME/.docker}"
+export DOCKER_SCAN_SUGGEST=false
+docker info --format '{{.OperatingSystem}}' | grep -q -e 'Docker Desktop' -e 'Docker for Mac' && __DOCKER_DESKTOP=true || __DOCKER_DESKTOP=false
+
+compose_flags=(
+  -f "ci/docker-compose.yml"
+)
+
+run_flags=(
+  --rm
+  -v "/var/run/docker.sock:/var/run/docker.sock"
+  -v "$DOCKER_CONFIG:$DOCKER_CONFIG"
+  -v "$ICEBURG_CI_PATH:$ICEBURG_CI_PATH:ro"
+  -l "net.iceburg.ci.id=$PIPELINE_ID"
+  -e "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}-0"
+)
+
+# platform customizations
+if [ "$GITLAB_CI" = true ]; then
+  dlog "Platform: GitLab CI"
+  # when inside a gitlab ci docker executor, detect+mount the builds volume.
+  # an alternate and more simple solution is to modify docker runner to bind-mount /builds, e.g.
+  #  gitlab-runner register \
+  #    ...
+  #    --docker-volumes '/var/run/docker.sock:/var/run/docker.sock'
+  #    --docker-volumes '/builds:/builds'
+  CONTAINER_ID=$(docker ps -q -f "label=com.gitlab.gitlab-runner.job.id=$CI_JOB_ID" -f "label=com.gitlab.gitlab-runner.type=build")
+  if [ -n "$CONTAINER_ID" ]; then
+    log "detected docker executor"
+    BUILDS_VOLUME=$(docker inspect "$CONTAINER_ID" -f "{{ range .Mounts }}{{ if eq .Destination \"/builds\" }}{{ .Source }}{{end}}{{end}}" | cut -d "/" -f 6)
+    if [ -n "$BUILDS_VOLUME" ]; then
+      export PROJECT_ROOT="$BUILDS_VOLUME:/builds"
+    fi
+  fi
+elif $__DOCKER_DESKTOP; then
+  dlog "Platform: Docker Desktop"
+  DOCKER_HOST=$(docker context inspect -f "{{ .Endpoints.docker.Host }}" default)
+  export DOCKER_HOST
+  export SSH_AUTH_SOCK=/run/host-services/ssh-auth.sock
+else
+  dlog "Platform: Unknown"
+fi
+
+run_flags+=(
+  --workdir "$PROJECT_ROOT"
+  -v "$PROJECT_ROOT:$PROJECT_ROOT"
+)
+
+# passthrough the ssh auth socket if set
+[ -e "$SSH_AUTH_SOCK" ] && run_flags+=(
+  -v "$SSH_AUTH_SOCK:$SSH_AUTH_SOCK"
+)
+
+# passthrough the /shared volume if it exists
+[ -d /shared ] && run_flags+=(
+  -v "/shared:/shared"
+)
+
+# make sure we can mount AWS_SHARED_CREDENTIALS_FILE if it's specified
+[ -e "$AWS_SHARED_CREDENTIALS_FILE" ] && run_flags+=(
+  -v "$AWS_SHARED_CREDENTIALS_FILE:$AWS_SHARED_CREDENTIALS_FILE"
+)
+
+# passthrough runtime environment with exception of certain variables
+env_blocklist=(
+  -u _
+  -u COMPOSE_PROJECT_NAME
+  -u EDITOR
+  -u GEM_HOME
+  -u GOPATH
+  -u HOME
+  -u HOSTNAME
+  -u JAVA_HOME
+  -u LANG
+  -u LC_CTYPE
+  -u LC_TYPE
+  -u LOGNAME
+  -u MAIL
+  -u OLDPWD
+  -u PATH
+  -u PWD
+  -u SHELL
+  -u SHLVL
+  -u TERM
+  -u TERM_SESSION_ID
+  -u TMPDIR
+  -u USER
+)
+for envar in $(env "${env_blocklist[@]}" | cut -f1 -d= | sed '/.*[[:space:]]/d'); do
+  run_flags+=( -e "$envar" )
+done
+
+compose(){
+  docker-compose "${compose_flags[@]}" "$@"
+}
+
+trap '{
+  RV=$?
+  dlog "tearing down..."
+  compose down --remove-orphans -v &>/dev/null
+  COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}-0 compose down --remove-orphans -v &>/dev/null
+  exit $RV
+}' EXIT
+
+
+for step in "$@"; do
+  log "Building $step step..."
+  compose build -q --pull "$step"
+
+  log "Running $step step..."
+  compose run "${run_flags[@]}" -e PIPELINE_STEP="$step" "$step"
+done

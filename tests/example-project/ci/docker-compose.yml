@@ -1,0 +1,44 @@
+version: "3.9"
+x-defaults: &ci-defaults
+  build:
+    context: ./
+    target: default
+  volumes: ["../:/work"]
+  profiles: ["ci"]
+
+services:
+  check:
+    << : *ci-defaults
+    build:
+      context: ./
+      target: check
+    command: hadolint src/Dockerfile
+
+  build:
+    << : *ci-defaults
+    command: |
+      sh -c '
+        set -eo pipefail
+        docker-compose build
+        echo "ping-pong:$PIPELINE_ID" > "$$PIPELINE_ARTIFACTS_PATH/build.manifest"
+      '
+
+  test:
+    << : *ci-defaults
+    command: |
+      sh -c '
+        set -eo pipefail
+        bats tests/iceburg-ci.bats
+        docker-compose run --rm test
+      '
+
+  publish:
+    << : *ci-defaults
+    command: echo "publishing from this repository is not implemented"
+
+  envtest:
+    image: alpine:3.14
+    environment:
+      FOO: bar
+    command: sh -c 'env | sort'
+    env_file: ./test.env

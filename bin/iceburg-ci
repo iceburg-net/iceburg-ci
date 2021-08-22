@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -eo pipefail
+ICEBURG_CI_PATH="$( cd "$(dirname "$0")/.." ; pwd -P)"
+export ICEBURG_CI_PATH
+
+__ENTRY=$(basename "$0")
+readonly __ENTRY
+
+log(){ printf "[%-5s%s $__ENTRY] $*\\n" "${__ll:-INFO}" >&2; }
+die(){ __ll=ERROR log "$*"; exit 1; }
+dlog(){ __ll=DEBUG log "$*"; }
+
+lib/help(){
+  lib/version
+  log "iCEBURG-CI Step Usage: iceburg-ci [step...]"
+  log "              ex: bin/ci $DEFAULT_STEPS"
+  log "See $CFCI_URL for more"
+}
+
+lib/version(){
+  log "iCEBURG-CI version: $(git -C "$ICEBURG_CI_PATH" rev-parse --short HEAD) ($(git -C "$ICEBURG_CI_PATH" rev-parse --abbrev-ref HEAD))"
+}
+
+DEFAULT_STEPS="${DEFAULT_STEPS:-check build test}"
+
+case "$1" in
+  -h|--help|help)
+    lib/help
+    exit
+    ;;
+  -v|--version|version)
+    lib/version
+    exit
+    ;;
+  *)
+    [ $# -eq 0 ] && set -- $DEFAULT_STEPS
+    ;;
+esac
+
+[ -n "$PROJECT_ROOT" ] || die "PROJECT_ROOT cannot be empty"
+cd "$PROJECT_ROOT" || die "failed entering PROJECT_ROOT"
+
+#
+# the CI platform should provide these variables. these are fallback defaults
+# that are used when building locally or if the CI platform does not provide.
+#
+# the pipeline ID provides a unique namespace, e.g. <branch name>-<build number>
+#   typically used for versioning and images tags
+export PIPELINE_ID="${PIPELINE_ID:-local-0}"
+export PIPELINE_ARTIFACTS_PATH="${PIPELINE_ARTIFACTS_PATH:-$PROJECT_ROOT/ci/artifacts/$PIPELINE_ID}"
+
+# modeled from OCI image spec:
+#  https://github.com/opencontainers/image-spec/blob/master/annotations.md
+export __AUTHORS="${__AUTHORS:-$(git log --format="%aN <%aE>" -n 1 HEAD)}"
+export __CREATED="${__CREATED:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
+export __REVISION="${__REVISION:-$(git rev-parse HEAD)}"
+export __SOURCE="${__SOURCE:-$(git remote get-url origin)}"
+export __URL="${__URL:-unknown}"
+export __VERSION="${__VERSION:-0.0.0}"
+
+[ -d "$PIPELINE_ARTIFACTS_PATH" ] || mkdir -p "$PIPELINE_ARTIFACTS_PATH"
+
+for step in "$@"; do
+  "$ICEBURG_CI_PATH/bin/iceburg-ci-step" "$step"
+done
