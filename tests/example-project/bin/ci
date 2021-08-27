@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+#
+# this bin/ci file would typically contain the contents of the
+#  iceburg-ci-downstreamer, however for this project, we are
+#  testing the current working copy of iceburg-ci itself.
+#
 set -eo pipefail
 root="$(git rev-parse --show-toplevel)"
 export PROJECT_ROOT="$root/tests/example-project"

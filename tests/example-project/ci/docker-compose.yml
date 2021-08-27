@@ -2,16 +2,10 @@ version: "3.9"
 x-defaults: &ci-defaults
   build:
     context: ./
-    target: default
-  volumes: ["../:/work"]
-  profiles: ["ci"]
 
 services:
   check:
     << : *ci-defaults
-    build:
-      context: ./
-      target: check
     command: hadolint src/Dockerfile
 
   build:

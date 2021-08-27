@@ -5,8 +5,7 @@ FROM $REGISTRY/alpine:3 as base
 RUN apk add --no-cache \
   bats \
   bash \
-  curl \
-  git
+  curl
 
 ARG WAIT_VERSION=2.9.0
 ARG WAIT_SHA256SUM=b945d1bc2b6bac5b8998bdc56791a66d99085432a6b164ef6726c52653f4b8d5
@@ -14,5 +13,4 @@ RUN wget https://github.com/ufoscout/docker-compose-wait/releases/download/$WAIT
     { [ "$(sha256sum wait | awk '{print $1}')" = "$WAIT_SHA256SUM" ] || exit 99 ; } &&\
     chmod +x wait && mv wait /wait
 
-WORKDIR /work
 ENTRYPOINT []

@@ -2,8 +2,22 @@ version: "3.9"
 
 services:
   ping-pong:
-    image: ping-pong:${PIPELINE_ID:-local-ci}
+    image: "ping-pong:iceburg-ci-$PIPELINE_ID"
     build: ./src/
+
+  test-suite:
+    profiles: ["test"]
+    build:
+      context: ./tests
+    environment:
+      WAIT_HOSTS: "ping-pong:80"
+      TEST_URI: http://ping-pong/ping
+    command: |
+      sh -c '
+        /wait && newman run --color on --timeout-request 5000 \
+          --env-var DEFAULT_ENDPOINT=http://cfappliance-nginx:80 \
+          --env-var PERL_ENDPOINT=http://cfappliance-nginx-perltester:8099 \
+          newman-collection.json
 
   test:
     profiles: ["test"]
