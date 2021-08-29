@@ -6,5 +6,5 @@
 #
 set -eo pipefail
 root="$(git rev-parse --show-toplevel)"
-export PROJECT_ROOT="$root/tests/example-project"
+export PROJECT_HOME="$root/tests/example-project"
 exec "$root/bin/iceburg-ci" "$@"

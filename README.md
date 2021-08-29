@@ -53,7 +53,7 @@ name | example | description
 PIPELINE_HOME | ~/.iceburg-ci/workspace-zHM | location of a fresh iCEBURG CI checkout provided by the [downstreamer](https://github.com/iceburg-net/iceburg-ci-downstreamer). facilitates the sharing of common steps and tools across projects. removed after execution unless ICEBURG_CI_SKIP_CLEANUP is set to 'true'.
 PIPELINE_STEP | test | name of the running CI step
 PIPELINE_ID | main-88 | unique namespace for a build. useful for versioning. typically provided by the CI platform as `<branch name>-<build number>`. defaults to `local-0` when not provided.
-PROJECT_ROOT | ~/git/acme-app | location of the top-level project folder, aka "root level of the application repository".
+PROJECT_HOME | ~/git/acme-app | top-level project folder, aka "your repository root".
 
 
 #### oci image spec variables
