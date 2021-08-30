@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -eo pipefail
+__ENTRY=$(basename "$0")
+log(){ printf "[%-5s%s $__ENTRY] $*\\n" "${__ll:-INFO}" >&2; }
+die(){ __ll=ERROR log "$*"; exit 1; }
+
+if [ -x "$(command -v python3)" ]; then
+  exec "$(dirname "$0")/manifest.py" "$@"
+else
+  die "missing python3. unable to perform manifest operations."
+fi

@@ -14,7 +14,8 @@ services:
       sh -c '
         set -eo pipefail
         docker-compose build
-        echo "ping-pong:$PIPELINE_ID" > "$$PIPELINE_ARTIFACTS_PATH/build.manifest"
+        "$PIPELINE_HOME/bin/manifest" artifact add -t docker \
+          "ping-pong:$PIPELINE_ID"
       '
 
   test:

@@ -49,6 +49,7 @@ cd "$PROJECT_HOME" || die "failed entering PROJECT_HOME"
 # the pipeline ID provides a unique namespace, e.g. <branch name>-<build number>
 #   typically used for versioning and images tags
 export PIPELINE_ID="${PIPELINE_ID:-local-0}"
+export MANIFEST_FILE="${PIPELINE_MANIFEST:-$PROJECT_HOME/ci/manifest.json}"
 
 # modeled from OCI image spec:
 #  https://github.com/opencontainers/image-spec/blob/master/annotations.md
@@ -62,13 +63,6 @@ export __VERSION="${__VERSION:-0.0.0}"
 #
 # step execution
 #
-
-# backwards compatibility - TODO: remove
-export PIPELINE_ARTIFACTS_PATH="${PIPELINE_ARTIFACTS_PATH:-$PROJECT_HOME/ci/artifacts/$PIPELINE_ID}"
-export PIPELINE_ARTIFACTS="$PIPELINE_ARTIFACTS_PATH"
-[ -d "$PIPELINE_ARTIFACTS_PATH" ] || mkdir -p "$PIPELINE_ARTIFACTS_PATH"
-export ICEBURG_CI_PATH="$PIPELINE_HOME"
-# env backwards compatibility
 
 export COMPOSE_PROJECT_NAME="${PROJECT_NAME:-$(basename "$PROJECT_HOME")}-${PIPELINE_ID}"
 export COMPOSE_DOCKER_CLI_BUILD=1
@@ -171,6 +165,10 @@ compose(){
   docker-compose "${compose_flags[@]}" "$@"
 }
 
+manifest(){
+  "$PIPELINE_HOME/bin/manifest" "$@" || __ll=WARN log "manifest $1 $2 operation failed"
+}
+
 trap '{
   RV=$?
   dlog "tearing down..."
@@ -179,7 +177,6 @@ trap '{
   exit $RV
 }' EXIT
 
-
 for step in "$@"; do
   export PIPELINE_STEP="$step"
 
@@ -187,5 +184,10 @@ for step in "$@"; do
   compose build -q --pull "$step"
 
   log "Running $step step..."
-  compose run "${run_flags[@]}" "$step"
+  manifest step start
+  compose run "${run_flags[@]}" "$step" || {
+    manifest step stop
+    die "step failure: $step"
+  }
+  manifest step stop
 done

@@ -1,0 +1,20 @@
+---
+# pipeline-manifest.yml yamale schema definition
+# https://github.com/23andMe/Yamale
+id: str()
+steps: list(include('step'))
+
+---
+step:
+  name: str()
+  status: include('status')
+  artifacts: list(include('artifact'))
+
+status:
+  start: timestamp()
+  stop: any(timestamp(), null())
+  code: any(int(), null())
+
+artifact:
+  name: str()
+  type: str()

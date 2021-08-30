@@ -40,9 +40,13 @@ e.x. to run the `larry`, `curly`, and `moe` step:
 project$ bin/ci larry curly moe
 ```
 
-steps are executed in the order specified. failure will halt the execution of subsequent steps.
+steps are executed in the order specified. **failure will halt the execution of subsequent steps**.
 
-if no steps are provided, the ICEBURG_CI_DEFAULT_STEPS will execute (`check` -> `build` -> `test`).
+if no steps are provided, the DEFAULT_STEPS will execute (currently `check` -> `build` -> `test`). thus the following are equivalent;
+```
+$ bin/ci
+$ bin/ci check build test
+```
 
 ### environment variables
 
@@ -50,9 +54,10 @@ the following variables are available to CI steps. the [CI platform](#ci-platfor
 
 name | example | description
 --- | --- | ---
-PIPELINE_HOME | ~/.iceburg-ci/workspace-zHM | location of a fresh iCEBURG CI checkout provided by the [downstreamer](https://github.com/iceburg-net/iceburg-ci-downstreamer). facilitates the sharing of common steps and tools across projects. removed after execution unless ICEBURG_CI_SKIP_CLEANUP is set to 'true'.
-PIPELINE_STEP | test | name of the running CI step
+PIPELINE_HOME | ~/.iceburg-ci/workspace-zHM | location of a fresh iCEBURG CI checkout provided by the [downstreamer](https://github.com/iceburg-net/iceburg-ci-downstreamer). facilitates the [sharing of common steps and tools](#central-steps-and-tools) across projects. removed after execution unless ICEBURG_CI_SKIP_CLEANUP is set to 'true'.
 PIPELINE_ID | main-88 | unique namespace for a build. useful for versioning. typically provided by the CI platform as `<branch name>-<build number>`. defaults to `local-0` when not provided.
+PIPELINE_MANIFEST | ~/git/acme-app/ci/manifest.json | location of the [pipeline manifest](#pipeline-manifest) file. defaults to `$PROJECT_HOME/ci/manifest.json`
+PIPELINE_STEP | test | name of the running CI step
 PROJECT_HOME | ~/git/acme-app | top-level project folder, aka "your repository root".
 
 
@@ -80,22 +85,22 @@ TBD -- and link to examples repository.
 
 ### Central Steps and Tools
 
-You may find it nice to have centrally maintained and always updated tooling available to any step -- and this is easily facilitated by including them in a [self hosted iceburg-ci repository](https://github.com/iceburg-net/iceburg-ci-downstreamer#self-hosted-iceburg-ci). A checkout of this repository is available at `$PIPELINE_HOME`.
+You may find it nice to have centrally maintained tooling available to any step. It is easy to do so by including them in a [self hosted iceburg-ci repository](https://github.com/iceburg-net/iceburg-ci-downstreamer#self-hosted-iceburg-ci). The `$PIPELINE_HOME` [variable](#environment-variables) points to an updated checkout of this repository.
 
-For instance, you may want to include a common `acme` step. To do this,
+For instance, you may want to include a common `build` step. To do this,
 
-* commit the step script to the iceburg-ci repository under `lib/steps/acme` (any path will do -- `lib/steps` is just a suggestion). e.g.
+* commit your shared workflow to the iceburg-ci repository under `lib/steps/acme-build` (any path will do -- `lib/steps` is just a suggestion). e.g.
   ```
-  iceburg-ci$ cat lib/steps/acme
+  iceburg-ci$ cat lib/steps/acme-build
 
   #!/usr/bin/env bash
-  echo "Greetings form the ACME CORPORATION step." >&2
+  echo "Greetings form the ACME CORPORATION build step." >&2
   echo "My version of the aws cli is:" >&2
   aws --version
   ...
   ```
 
-* call the step script from a project's CI workflow. e.g.
+* execute the shared workflow from your project's `build` step. e.g.
   ```
   acme-project$ cat ci/docker-compose.yml
 
@@ -103,10 +108,77 @@ For instance, you may want to include a common `acme` step. To do this,
   version: "3.9"
 
   services:
-    acme:
+    build:
       image: "amazon/aws-cli:2.2.33"
-      command: "$PIPELINE_HOME/lib/steps/acme"
+      command: "$PIPELINE_HOME/lib/steps/acme-build"
   ```
+
+#### Pipeline Manifest
+
+> NOTE: the manifest tooling currently requires step containers to have a working python3 environment.
+
+iCEBURG CI keeps a manifest of step execution through a centrally maintained tool. An example manifest and schema can be found in [lib/pipeline-manifest](lib/pipeline-manifest/). the location of the file is determined by the `PIPELINE_MANIFEST` [variable](#environment-variables).
+
+the CI platform may make the manifest available (e.g. to provide insight to users without having to look through logs). in addition, steps can reference the manifest for their own work (see [step artifacts](#step-artifacts)).
+
+A pipeline that is currently running the `build` step looks like:
+
+```yml
+---
+# example showing a currently running 'build' step
+id: local-0
+steps:
+  - name: check
+    status:
+      start: 2020-01-30 05:30:45
+      end: 2020-01-30 05:30:50
+      code: 0
+  - name: build
+    status:
+      start: 2020-01-30 05:30:51
+      end: null
+      code: null
+```
+
+##### step artifacts
+
+steps may register and list artifacts with the `$PIPELINE_HOME/bin/manifest` [tool](bin/manifest). below is an example `ci/docker-compose.yml` file from a project that publishes artifacts that the `build` step created when `bin/ci publish` is executed.
+
+```yml
+---
+version: "3.9"
+services:
+  build:
+    image: "iceburgci/step-image:universal"
+    command: |
+      sh -c '
+        set -eo pipefail
+        docker build -t acme-app:ci-$PIPELINE_ID src/
+        docker tag acme-app:$PIPELINE_ID acme-app:ci-latest
+
+        # register image(s) as 'docker' type artifacts
+        "$PIPELINE_HOME/bin/manifest" artifact add -t docker \
+          acme-app:ci-$PIPELINE_ID \
+          acme-app:ci-latest
+      '
+
+  publish:
+    image: "iceburgci/step-image:universal"
+    command: |
+      sh -c '
+        set -eo pipefail
+        # publish image(s) from the 'build' step
+        "$PIPELINE_HOME/bin/manifest" artifact ls -t docker -s build | \
+          while read -r img; do
+            publish_img="acme.registry/$img"
+            docker tag "$img" "$publish_img"
+            docker push "$publish_img"
+            "$PIPELINE_HOME/bin/manifest" artifact add -t docker "$publish_img"
+          done
+      '
+```
+
+the `bin/manifest artifact add` and `bin/manifest artifact ls` commands are used. `-t` groups artifacts under an _arbitrary_  type ('file' being the default). `-s` is used for working with artifacts in a different step (the current step name ($PIPELINE_STEP [variable](#environment-variables) being the default). see the command help for more.
 
 
 ## CI Platform Integration

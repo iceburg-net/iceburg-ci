@@ -1,0 +1,31 @@
+---
+id: local-0
+steps:
+  - name: build
+    status:
+      start: 2020-01-30 05:30:51
+      stop: 2020-01-30 05:31:13
+      code: 0
+    artifacts:
+      - name: com.acme.handler:acme-spring-exception-handler:local-0
+        type: maven
+      - name: ci/artifacts/local-0/foo.tar.gz
+        type: path
+      - name: foo:local-0
+        type: docker-image
+      - name: bar:local-0
+        type: docker-image
+  - name: publish
+    status:
+      start: 2020-01-30 05:31:15
+      stop: 2020-01-30 05:36:11
+      code: 0
+    artifacts:
+      - name: com.acme.handler:acme-spring-exception-handler:local-0
+        type: maven
+      - name: s3://acme-bucket/local-0/foo.tar.gz
+        type: lambda
+      - name: docker.io/acme/foo:local-0
+        type: docker-image
+      - name: docker.io/acme/bar:local-0
+        type: docker-image
