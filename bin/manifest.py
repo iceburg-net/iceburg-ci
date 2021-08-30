@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 #
-# @Source https://github.com/iceburg-net/iceburg-ci/blob/main/bin/manifest
+# @Source https://github.com/iceburg-net/iceburg-ci/blob/main/bin/manifest.py
 # @Style python-black
-# @Version 0.0.1
+# @Version 0.0.2
 #
 # usage: foo [-h] [-f FILE] [-v] {artifact,step} ...
 #
@@ -32,22 +32,30 @@ def main(args, loglevel):
         datefmt="%Y-%m-%d %H:%M:%S",
         level=loglevel,
     )
-    logging.debug(args)
-    manifest = PipelineManifest(args.file)
-    if args.command == "step":
-        if args.subcommand == "start":
-            manifest.step_start(args.step_name)
-        elif args.subcommand == "stop":
-            manifest.step_stop(args.step_name, exit_code=args.exit_code)
-        manifest.write(args.file)
-    elif args.command == "artifact":
-        if args.subcommand == "add":
-            manifest.artifact_add(args.name, step_name=args.step_name, type=args.type)
+
+    try:
+        manifest = PipelineManifest(args.file)
+        if args.command == "step":
+            if args.subcommand == "start":
+                manifest.step_start(args.step_name)
+            elif args.subcommand == "stop":
+                manifest.step_stop(args.step_name, exit_code=args.exit_code)
             manifest.write(args.file)
-        elif args.subcommand == "ls":
-            manifest.artifact_list(
-                step_names=args.step_name, types=args.type, step_count=args.step_count
-            )
+        elif args.command == "artifact":
+            if args.subcommand == "add":
+                manifest.artifact_add(
+                    args.name, step_name=args.step_name, type=args.type
+                )
+                manifest.write(args.file)
+            elif args.subcommand == "ls":
+                manifest.artifact_list(
+                    step_names=args.step_name,
+                    types=args.type,
+                    step_count=args.step_count,
+                )
+    except Exception as e:
+        logging.critical("operation failed")
+        sys.exit(1)
 
 
 class PipelineManifest:
@@ -83,7 +91,12 @@ class PipelineManifest:
         if not "artifacts" in step:
             step["artifacts"] = []
 
+        if "-" in names:
+            names.extend(sys.stdin.read().rstrip().split())
+
         for name in names:
+            if name == "-":
+                continue
             step["artifacts"].append({"name": name, "type": type})
 
     def artifact_list(self, types=[], step_names=[], step_count=0):
@@ -200,7 +213,7 @@ if __name__ == "__main__":
     cli_cmd_artifact_add = cli_cmds_artifact.add_parser(
         "add",
         help="add artifacts",
-        description="add artifacts",
+        description="add artifacts. artifact names may be passed or read from stdin.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     cli_cmd_artifact_add.add_argument(
@@ -215,7 +228,12 @@ if __name__ == "__main__":
         help="artifact type, e.g. 'file', 'docker', 'mvn', &c.",
         default="file",
     )
-    cli_cmd_artifact_add.add_argument("name", help="artifact name(s)", nargs="+")
+    cli_cmd_artifact_add.add_argument(
+        "name",
+        help="artifact name(s). if '-', names read from stdin",
+        metavar="name|-",
+        nargs="+",
+    )
 
     cli_cmd_step = cli_cmds.add_parser("step", help="start and stop steps")
     cli_cmds_step = cli_cmd_step.add_subparsers(title="step command", dest="subcommand")
