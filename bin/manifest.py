@@ -2,7 +2,7 @@
 #
 # @Source https://github.com/iceburg-net/iceburg-ci/blob/main/bin/manifest.py
 # @Style python-black
-# @Version 0.0.2
+# @Version 0.1.0
 #
 # usage: foo [-h] [-f FILE] [-v] {artifact,step} ...
 #
@@ -188,7 +188,8 @@ if __name__ == "__main__":
         title="artifact command", dest="subcommand"
     )
     cli_cmd_artifact_list = cli_cmds_artifact.add_parser(
-        "ls",
+        "list",
+        aliases=["ls"],
         help="list artifacts",
         description="list artifacts",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
