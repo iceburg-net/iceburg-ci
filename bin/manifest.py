@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# @Source https://github.com/iceburg-net/iceburg-ci/blob/main/bin/manifest.py
+# @Source https://github.com/iceburgci/iceburg-ci/blob/main/bin/manifest.py
 # @Style python-black
 # @Version 0.1.0
 #

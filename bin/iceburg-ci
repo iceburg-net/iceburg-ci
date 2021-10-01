@@ -14,7 +14,7 @@ lib/help(){
   lib/version
   log "iCEBURG-CI Step Usage: iceburg-ci [step...]"
   log "              ex: bin/ci $DEFAULT_STEPS"
-  log "More help: ${ICEBURG_CI_URL:-https://github.com/iceburg-net/iceburg-ci}"
+  log "More help: ${ICEBURG_CI_URL:-https://github.com/iceburgci/iceburg-ci}"
 }
 
 lib/version(){

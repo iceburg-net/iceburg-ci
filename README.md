@@ -6,7 +6,7 @@ our goal is to support a single convention for CI builds across projects by prov
 
 ## quickstart
 
-:one: enable iceburg-ci by including the [downstreamer](https://github.com/iceburg-net/iceburg-ci-downstreamer/) in your project or installing it as a system-wide tool.
+:one: enable iceburg-ci by including the [downstreamer](https://github.com/iceburgci/iceburg-ci-downstreamer/) in your project or installing it as a system-wide tool.
 
 :two: add a compliant `ci/docker-compose.yml` file to your project following one of the [examples](#examples).
 
@@ -24,7 +24,7 @@ projects include a compliant `ci/docker-compose.yml` in their repositories. this
 the behavior of each step is defined by the service's command/entrypoint. for instance, the 'check' service's command may be `command: hadolint src/Dockerfile`. each service can reference a Dockerfile or image† to provide its own dependencies, such as a specific versions of terraform or the JDK.
 > :package: This ensures self contained  builds. Only docker is needed on the host/developer machine.
 
-† Instead of including a Dockerfile, a service may reference a  published image to keep things cached and DRY. The [iceburgci/step-image:universal](https://github.com/iceburg-net/iceburg-ci-docker-images) image makes a good choice.
+† Instead of including a Dockerfile, a service may reference a  published image to keep things cached and DRY. The [iceburgci/step-image:universal](https://github.com/iceburgci/iceburg-ci-docker-images) image makes a good choice.
 
 
 iceburg-ci tooling is used to kickoff CI steps -- matching the requested step(s) to the appropriate docker-compose commands (e.g. `docker-compose run --rm test`) while taking care of concurrency, [environment variables](#environment-variables), volume mounts, and cleanup.
@@ -54,7 +54,7 @@ the following variables are available to CI steps. the [CI platform](#ci-platfor
 
 name | example | description
 --- | --- | ---
-PIPELINE_HOME | ~/.iceburg-ci/workspace-zHM | a fresh checkout of the iceburg-ci repository provided by the [downstreamer](https://github.com/iceburg-net/iceburg-ci-downstreamer). facilitates [sharing of common steps and tools](#central-steps-and-tools) and serves as a "scratch" directory (it is removed after execution unless ICEBURG_CI_SKIP_CLEANUP is set to 'true').
+PIPELINE_HOME | ~/.iceburg-ci/workspace-zHM | a fresh checkout of the iceburg-ci repository provided by the [downstreamer](https://github.com/iceburgci/iceburg-ci-downstreamer). facilitates [sharing of common steps and tools](#central-steps-and-tools) and serves as a "scratch" directory (it is removed after execution unless ICEBURG_CI_SKIP_CLEANUP is set to 'true').
 PIPELINE_ID | main-88 | unique namespace for a build. useful for versioning. typically provided by the CI platform as `<branch name>-<build number>`. defaults to `local-0` when not provided.
 PIPELINE_MANIFEST | ~/git/acme-app/ci/manifest.json | location of the [pipeline manifest](#pipeline-manifest) file. defaults to `$PROJECT_HOME/ci/manifest.json`
 PIPELINE_STEP | test | name of the running CI step
@@ -70,7 +70,7 @@ name | example | description
 __AUTHORS | Mr. Bean | build author
 __CREATED | 2021-06-15T23:32:41Z | artifact creation date
 __REVISION | e351118cd | revision/ref used to build.
-__SOURCE | git@github.com/iceburg-net/iceburg-ci.git | source/repo URL
+__SOURCE | git@github.com/iceburgci/iceburg-ci.git | source/repo URL
 __URL | http://jenkins/job/3562 | build/CI URL
 __VERSION | 1.10.3 | build version or tag
 
@@ -85,7 +85,7 @@ TBD -- and link to examples repository.
 
 ### Central Steps and Tools
 
-The contents of the iceburg-ci repository (or your organization's [self hosted one](https://github.com/iceburg-net/iceburg-ci-downstreamer#self-hosted-iceburg-ci)) is available to any step by referencing the `$PIPELINE_HOME` [variable](#environment-variables) -- and we can use this repository to provide centrally managed tooling to help keep things DRY.
+The contents of the iceburg-ci repository (or your organization's [self hosted one](https://github.com/iceburgci/iceburg-ci-downstreamer#self-hosted-iceburg-ci)) is available to any step by referencing the `$PIPELINE_HOME` [variable](#environment-variables) -- and we can use this repository to provide centrally managed tooling to help keep things DRY.
 
 For instance, you may want to include a common `build` step shared by some projects. To do this;
 
