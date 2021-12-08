@@ -49,6 +49,7 @@ cd "$PROJECT_HOME" || die "failed entering PROJECT_HOME"
 # the pipeline ID provides a unique namespace, e.g. <branch name>-<build number>
 #   typically used for versioning and images tags
 export PIPELINE_ID="${PIPELINE_ID:-local-0}"
+export PROJECT_NAME="${PROJECT_NAME:-$(basename "$PROJECT_HOME")}"
 export MANIFEST_FILE="${PIPELINE_MANIFEST:-$PROJECT_HOME/ci/manifest.json}"
 
 # modeled from OCI image spec:
@@ -57,14 +58,14 @@ export __AUTHORS="${__AUTHORS:-$(git log --format="%aN <%aE>" -n 1 HEAD)}"
 export __CREATED="${__CREATED:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
 export __REVISION="${__REVISION:-$(git rev-parse HEAD)}"
 export __SOURCE="${__SOURCE:-$(git remote get-url origin)}"
-export __URL="${__URL:-unknown}"
-export __VERSION="${__VERSION:-0.0.0}"
+export __URL="${__URL:-localhost}"
+export __VERSION="${__VERSION:-unknown}"
 
 #
 # step execution
 #
 
-export COMPOSE_PROJECT_NAME="${PROJECT_NAME:-$(basename "$PROJECT_HOME")}-${PIPELINE_ID}"
+export COMPOSE_PROJECT_NAME="${PROJECT_NAME}-${PIPELINE_ID}"
 export COMPOSE_DOCKER_CLI_BUILD=1
 export DOCKER_BUILDKIT=1
 export DOCKER_CONFIG="${DOCKER_CONFIG:-$HOME/.docker}"
