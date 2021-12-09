@@ -181,7 +181,7 @@ trap '{
 
 for step in "$@"; do
   if [ "$step" = "--" ]; then
-    # run everything after delimiter in the context of ci checkout directory
+    # run everything after delimiter as an arbitrary command in the context of ci checkout directory
     # e.g. iceburg-ci -- bin/manifest artifact ls -t docker -s build
 
     cd "$PIPELINE_HOME" ; shift ; "$@" ; exit $?

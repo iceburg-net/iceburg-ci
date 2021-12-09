@@ -8,7 +8,13 @@ our goal is to support a single convention for CI builds across projects by prov
 
 :one: enable iceburg-ci by including the [downstreamer](https://github.com/iceburgci/iceburg-ci-downstreamer/) in your project or installing it as a system-wide tool.
 
-:two: add a compliant `ci/docker-compose.yml` file to your project following one of the [examples](#examples).
+:two: add a compliant `ci/docker-compose.yml` file to your project. services in this file define what is performed during a step. e.g.
+```yaml
+services:
+  build:
+    image: gradle:7-jdk17
+    command: gradle build
+  ```
 
 :three: run a step (see [usage](#usage)) either via `bin/ci` or `iceburg-ci` (from any folder within the project if installed as a system tool).
 
@@ -17,18 +23,15 @@ our goal is to support a single convention for CI builds across projects by prov
 iCEBURG CI provides a consistent interface to kickoff builds, both locally and on the CI platform.
 > :family: This ensures accessible builds -- even when CI is down! Developers can run _exactly_ what the CI platform runs without having to check-in code.
 
-projects include a compliant `ci/docker-compose.yml` in their repositories. this file defines an eponymously named service for each available step. at minimum, the default steps are represented (typically the `build` , `check`, and `test` services).
-
+projects include a compliant `ci/docker-compose.yml` in their repositories. services in this file define what is performed during a step. generally the default steps are represented (e.g. the `build` , `check`, and `test` services exist).
 > :monorail: This ensures portable builds. The compose file works the same across platforms and projects.
 
-the behavior of each step is defined by the service's command/entrypoint. for instance, the 'check' service's command may be `command: hadolint src/Dockerfile`. each service can reference a Dockerfile or image† to provide its own dependencies, such as a specific versions of terraform or the JDK.
-> :package: This ensures self contained  builds. Only docker is needed on the host/developer machine.
-
-† Instead of including a Dockerfile, a service may reference a  published image to keep things cached and DRY. The [iceburgci/step-image:universal](https://github.com/iceburgci/iceburg-ci-docker-images) image makes a good choice.
+each step provides its own dependencies (such as a specific terraform version or JDK) by referencing a Dockerfile or image in its service definition. published images are recommended to keep things cached and DRY ([iceburgci/step-image:universal](https://github.com/iceburgci/iceburg-ci-docker-images) makes a great choice!).
+> :package: This ensures self contained  builds. Docker and bash become the only requirements for developer and CI machines.
 
 
-iceburg-ci tooling is used to kickoff CI steps -- matching the requested step(s) to the appropriate docker-compose commands (e.g. `docker-compose run --rm test`) while taking care of concurrency, [environment variables](#environment-variables), volume mounts, and cleanup.
-> :vertical_traffic_light: This ensures reliably repeatable builds. Developers don't need to reverse engineer nor do pipeline definitions need to be ported from one DSL to the next.
+iceburg-ci tooling matches requested step(s) to the appropriate docker-compose commands (e.g. `docker-compose run --rm test`) or scripts, while taking care of concurrency concerns, [environment variables](#environment-variables), volume mounts, and cleanup.
+> :vertical_traffic_light: This ensures reliably repeatable builds. No need to reverse engineer pipelines or port from one DSL to the next.
 
 ## usage
 
@@ -40,12 +43,36 @@ e.x. to run the `larry`, `curly`, and `moe` step:
 project$ bin/ci larry curly moe
 ```
 
-steps are executed in the order specified. **failure will halt the execution of subsequent steps**.
-
-if no steps are provided, the DEFAULT_STEPS will execute (currently `check` -> `build` -> `test`). thus the following are equivalent;
+if no steps are provided, the DEFAULT_STEPS will execute (currently `check`, `build`, `test`). thus the following are _equivalent_;
 ```
 $ bin/ci
 $ bin/ci check build test
+```
+
+### step execution
+
+steps are executed in the order specified. **failure will halt the execution of subsequent steps**.
+
+iceburg-ci first attempts to run a matching service from the  `ci/docker-compose.yml` file (e.g. the 'build' steps tries to run a service named 'build'). if no matching service is found, it will attempt to execute a [custom step](#custom-steps).
+
+#### custom steps
+
+it is possible to provide an executable to perform step duties and bypass docker compose entirely.
+
+if no matching service is found, iceburg-ci will attempt to run an executable under  `ci/steps/<step name>` before trying `$PIPELINE_HOME/lib/steps/<step name>` ($PIPELINE_HOME allows [shared, centrally maintained steps](#central-steps-and-tools)).
+
+> be sure to mark your script as executable (e.g. `chmod +x ci/steps/build`)
+
+#### optional steps
+
+if not matching service or [custom step](#custom-steps) is found, the step will be skipped and a warning issued.
+
+#### arbitrary commands
+
+it is possible to run arbitrary commands in the context of a [shared, centrally maintained directory](#central-steps-and-tools) by using a delimiter (`--`). everything after the delimiter executes within $PIPELINE_HOME. The following executes the [manifest tool](#pipeline-manifest) to list 'docker' type artifacts created by the last build step;
+
+```
+iceburg-ci -- bin/manifest artifact ls -t docker -s build
 ```
 
 ### environment variables
@@ -54,7 +81,7 @@ the following variables are available to CI steps. the [CI platform](#ci-platfor
 
 name | example | description
 --- | --- | ---
-PIPELINE_HOME | ~/.iceburg-ci/workspace-zHM | a fresh checkout of the iceburg-ci repository provided by the [downstreamer](https://github.com/iceburgci/iceburg-ci-downstreamer). facilitates [sharing of common steps and tools](#central-steps-and-tools) and serves as a "scratch" directory (it is removed after execution unless ICEBURG_CI_SKIP_CLEANUP is set to 'true').
+PIPELINE_HOME | ~/.iceburg-ci/workspace-zHM | a fresh, updated checkout of iceburg-ci maintained by the [downstreamer](https://github.com/iceburgci/iceburg-ci-downstreamer). facilitates [sharing of common steps and tools](#central-steps-and-tools) and serves as a "scratch" directory (it is removed after execution unless ICEBURG_CI_SKIP_CLEANUP is set to 'true').
 PIPELINE_ID | main-88 | unique namespace for a build. useful for versioning. typically provided by the CI platform as `<branch name>-<build number>`. defaults to `local-0` when not provided.
 PIPELINE_MANIFEST | ~/git/acme-app/ci/manifest.json | location of the [pipeline manifest](#pipeline-manifest) file. defaults to `$PROJECT_HOME/ci/manifest.json`
 PIPELINE_STEP | test | name of the running CI step
@@ -82,6 +109,30 @@ __VERSION | 1.10.3 | build version or tag
 ### examples
 
 TBD -- and link to examples repository.
+
+```yaml
+---
+version: "3.9"
+x-defaults: &ci-defaults
+  image: iceburgci/step-image:universal
+
+services:
+  check:
+    << : *ci-defaults
+    command: |
+      sh -c '
+        set -eo pipefail
+        hadolint -t error src/Dockerfile
+        shellcheck tests/*.sh
+      '
+  build:
+    << : *ci-defaults
+    command: gradle buildImage
+
+  test:
+    << : *ci-defaults
+    command: gradle testImage
+```
 
 ### Central Steps and Tools
 
@@ -231,4 +282,4 @@ TODO: manifest example
 
 iCEBURG CI is patterned from [AnyCI](https://github.com/anyci/anyci/) but favors a familiar convention (the expectation fo ci/docker-compose.yml) over flexibility.
 
-Early roots are in bin/exec and groundcontrol/starfleet's `sun/planet:moon` overlay inspired by docker image convention.
+Earlier roots are in [bin/exec](https://github.com/briceburg/tools/blob/main/bin/exec) and groundcontrol/starfleet's `sun/planet:moon` overlay inspired by docker image convention.
