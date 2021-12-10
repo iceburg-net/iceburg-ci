@@ -26,11 +26,11 @@ DEFAULT_STEPS="${DEFAULT_STEPS:-check build test}"
 
 case "$1" in
   -h|--help|help)
-    lib/help
+    lib/help 2>&1
     exit
     ;;
   -v|--version|version)
-    lib/version
+    lib/version 2>&1
     exit
     ;;
   *)
@@ -50,6 +50,7 @@ cd "$PROJECT_HOME" || die "failed entering PROJECT_HOME"
 # the pipeline ID provides a unique namespace, e.g. <branch name>-<build number>
 #   typically used for versioning and images tags
 export PIPELINE_ID="${PIPELINE_ID:-local-0}"
+export PIPELINE_STEP=""
 export PROJECT_NAME="${PROJECT_NAME:-$(basename "$PROJECT_HOME")}"
 export MANIFEST_FILE="${PIPELINE_MANIFEST:-$PROJECT_HOME/ci/manifest.json}"
 
@@ -93,7 +94,7 @@ run_flags=(
 )
 
 # platform customizations
-dlog "$(dockercompose version)"
+dlog "compose version: $(compose version --short)"
 if [ "$GITLAB_CI" = true ]; then
   dlog "Platform: GitLab CI"
   # when inside a gitlab ci docker executor, detect+mount the builds volume.
@@ -143,6 +144,7 @@ run_flags+=(
 env_blocklist=(
   -u _
   -u COMPOSE_PROJECT_NAME
+  -u COMPOSE_FILE
   -u EDITOR
   -u GEM_HOME
   -u GOPATH
@@ -212,7 +214,7 @@ for step in "$@"; do
       if [ -e "$PIPELINE_HOME/lib/steps/$step" ]; then
         "$PIPELINE_HOME/lib/steps/$step"
       else
-        warn "no definition found for $step step. skipping ..."
+        warn "skipping $step. no definition found."
       fi
     fi
   fi
