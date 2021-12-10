@@ -13,6 +13,7 @@ COPY --from=hadolint /bin/hadolint /usr/local/bin/
 RUN apk add --no-cache \
   bats \
   bash \
+  git \
   python3
 
 ENTRYPOINT []

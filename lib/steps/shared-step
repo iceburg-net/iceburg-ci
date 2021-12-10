@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+echo "I am not a teapot."
+echo "I am example $PIPELINE_STEP."
+exit 111
