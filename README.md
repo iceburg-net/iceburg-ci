@@ -8,7 +8,7 @@ our goal is to support a single convention for CI builds across projects by prov
 
 :one: enable iceburg-ci by including the [downstreamer](https://github.com/iceburgci/iceburg-ci-downstreamer/) in your project or installing it as a system-wide tool.
 
-:two: add a compliant `ci/docker-compose.yml` file to your project. services in this file define what is performed during a step. e.g.
+:two: add `ci/docker-compose.yml` to your project. services in this file define what is performed during a step;
 ```yaml
 services:
   build:
@@ -23,21 +23,21 @@ services:
 iCEBURG CI provides a consistent interface to kickoff builds, both locally and on the CI platform.
 > :family: This ensures accessible builds -- even when CI is down! Developers can run _exactly_ what the CI platform runs without having to check-in code.
 
-projects include a compliant `ci/docker-compose.yml` in their repositories. services in this file define what is performed during a step. generally the default steps are represented (e.g. the `build` , `check`, and `test` services exist).
+projects include a compliant `ci/docker-compose.yml`. services in this file define what is performed during a step. generally the default steps are represented (e.g. the `build` , `check`, and `test` services exist).
 > :monorail: This ensures portable builds. The compose file works the same across platforms and projects.
 
-each step provides its own dependencies (such as a specific terraform version or JDK) by referencing a Dockerfile or image in its service definition. published images are recommended to keep things cached and DRY ([iceburgci/step-image:universal](https://github.com/iceburgci/iceburg-ci-docker-images) makes a great choice!).
-> :package: This ensures self contained  builds. Docker and bash become the only requirements for developer and CI machines.
+each step provides its own dependencies (such as a specific terraform version or JDK) by referencing a Dockerfile or image in its service definition. published images are recommended to keep things cached and DRY (the [iceburgci/step-image:universal](https://github.com/iceburgci/iceburg-ci-docker-images) image makes a great choice!).
+> :package: This ensures self contained  builds. Docker and bash are now your only requirements.
 
 
-iceburg-ci tooling matches requested step(s) to the appropriate docker-compose commands (e.g. `docker-compose run --rm test`) or scripts, while taking care of concurrency concerns, [environment variables](#environment-variables), volume mounts, and cleanup.
-> :vertical_traffic_light: This ensures reliably repeatable builds. No need to reverse engineer pipelines or port from one DSL to the next.
+iceburg-ci tooling matches requested step(s) to appropriate commands (e.g. `docker-compose run --rm test`), while taking care of concurrency concerns, [environment variables](#environment-variables), volume mounts, and cleanup.
+> :vertical_traffic_light: This ensures reliably repeatable builds. Stop reverse engineering and porting pipeline DSLs.
 
 ## usage
 
-`bin/ci` (or `iceburg-ci` if system installed) `[step name...]`
+`bin/ci` (or `iceburg-ci` if [system installed](https://github.com/iceburgci/iceburg-ci-downstreamer#as-a-system-tool)) `[step name...]` `[-- arbitrary_cmd]`
 
-e.x. to run the `larry`, `curly`, and `moe` step:
+e.x. to run the `larry`, `curly`, and `moe` steps:
 
 ```
 project$ bin/ci larry curly moe
@@ -69,7 +69,7 @@ if not matching service or [custom step](#custom-steps) is found, the step will 
 
 #### arbitrary commands
 
-it is possible to run arbitrary commands in the context of a [shared, centrally maintained directory](#central-steps-and-tools) by using a delimiter (`--`). everything after the delimiter executes within $PIPELINE_HOME. The following executes the [manifest tool](#pipeline-manifest) to list 'docker' type artifacts created by the last build step;
+it is possible to run arbitrary commands in the context of a [shared, centrally maintained directory](#central-steps-and-tools) by using a delimiter (`--`). everything after the delimiter executes within $PIPELINE_HOME. For example, the following executes the [manifest tool](#pipeline-manifest) to list 'docker' type artifacts created by the last build step;
 
 ```
 iceburg-ci -- bin/manifest artifact ls -t docker -s build
