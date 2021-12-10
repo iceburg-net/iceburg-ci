@@ -28,5 +28,6 @@ services:
     depends_on:
       - ping-pong
     command: sh -c "/wait && bats tests/ping-pong.bats"
+    working_dir: /work
     volumes:
       - ./:/work

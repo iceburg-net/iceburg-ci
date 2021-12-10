@@ -24,6 +24,7 @@ services:
       sh -c '
         set -eo pipefail
         bats tests/iceburg-ci.bats
+        docker-compose build test
         docker-compose run --rm test
       '
 
