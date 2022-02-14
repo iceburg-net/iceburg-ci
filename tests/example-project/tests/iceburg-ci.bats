@@ -28,6 +28,7 @@
 @test "support custom steps" {
   run --separate-stderr bin/ci local-step
   [[ "$output" == *"teapot"* ]]
+  [[ "$output" == *"I am example local-step"* ]]
   [ "$status" -eq 123 ]
 
   run --separate-stderr bin/ci shared-step
