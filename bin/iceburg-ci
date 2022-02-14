@@ -208,7 +208,8 @@ run_step(){
     export PIPELINE_STEP="$step"
     manifest step start
     log "Running $step step..."
-    $step_cmd || { RV=$? ; manifest step stop ; exit $RV ; }
+    $step_cmd || { RV=$? ; manifest step stop --exit-code $RV ; exit $RV ; }
+    manifest step stop
   else
     warn "Skipping $step step... no definition found."
   fi
