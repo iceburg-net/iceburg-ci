@@ -50,7 +50,6 @@ cd "$PROJECT_HOME" || die "failed entering PROJECT_HOME"
 # the pipeline ID provides a unique namespace, e.g. <branch name>-<build number>
 #   typically used for versioning and images tags
 export PIPELINE_ID="${PIPELINE_ID:-local-0}"
-export PIPELINE_STEP=""
 export PROJECT_NAME="${PROJECT_NAME:-$(basename "$PROJECT_HOME")}"
 export MANIFEST_FILE="${PIPELINE_MANIFEST:-$PROJECT_HOME/ci/manifest.json}"
 
@@ -171,9 +170,10 @@ for envar in $(env "${env_blocklist[@]}" | cut -f1 -d= | sed '/.*[[:space:]]/d')
   run_flags+=( -e "$envar" )
 done
 
+TEARDOWN_COMPOSE=false
 trap '{
   RV=$?
-  if [ -n "$PIPELINE_STEP" ]; then
+  if [ "$TEARDOWN_COMPOSE" = true ]; then
     dlog "tearing down..."
     compose down --remove-orphans -v &>/dev/null
     COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}-0 compose down --remove-orphans -v &>/dev/null
@@ -181,41 +181,45 @@ trap '{
   exit $RV
 }' EXIT
 
-for step in "$@"; do
-  if [ "$step" = "--" ]; then
-    # run everything after delimiter as an arbitrary command in the context of ci checkout directory
-    # e.g. iceburg-ci -- bin/manifest artifact ls -t docker -s build
+run_step(){
+  local step="$1"
+  local step_cmd=""
 
-    cd "$PIPELINE_HOME" ; shift ; "$@" ; exit $?
-  elif compose config --services | grep -qe "^$step$"; then
-    # the compose file contains a service matching the step name, run it
-    # this is DEFAULT/NORMAL behavior
-
-    export PIPELINE_STEP="$step"
-
+  if compose config --services | grep -qe "^$step$"; then
+    # if the compose file contains a service matching the step name
     log "Building $step step..."
     compose build -q --pull "$step"
-
-    log "Running $step step..."
-    manifest step start
-    compose run "${run_flags[@]}" "$step" || {
-      manifest step stop
-      die "step failure: $step"
-    }
-    manifest step stop
+    step_cmd="compose run ${run_flags[*]} $step"
+    TEARDOWN_COMPOSE=true
   else
-    # the compose file is missing step definition, search for script instead
+    # if the compose file is missing the definition
     dlog "$COMPOSE_FILE is missing '$step' service, trying ci/steps/$step ..."
-
     if [ -e "ci/steps/$step" ]; then
-      "ci/steps/$step"
+      step_cmd="ci/steps/$step"
     else
       dlog "ci/steps/$step is missing. trying \$PIPELINE_HOME/lib/steps/$step ..."
       if [ -e "$PIPELINE_HOME/lib/steps/$step" ]; then
-        "$PIPELINE_HOME/lib/steps/$step"
-      else
-        warn "skipping $step. no definition found."
+        step_cmd="$PIPELINE_HOME/lib/steps/$step"
       fi
     fi
+  fi
+
+  if [ -n "$step_cmd" ]; then
+    export PIPELINE_STEP="$step"
+    manifest step start
+    log "Running $step step..."
+    $step_cmd || { RV=$? ; manifest step stop ; exit $RV ; }
+  else
+    warn "Skipping $step step... no definition found."
+  fi
+}
+
+for step in "$@"; do
+  if [ "$step" = "--" ]; then
+    # run everything after delimiter as an arbitrary command in the context of ci checkout directory
+    # e.g. cofense-ci -- bin/manifest artifact ls -t docker -s build
+    cd "$PIPELINE_HOME" ; shift ; "$@" ; exit $?
+  else
+    run_step "$step"
   fi
 done

@@ -38,6 +38,6 @@
 @test "ensure optional steps" {
   run bin/ci missing-step
   [[ "$output" == *"WARN"* ]]
-  [[ "$output" == *"skipping missing-step"* ]]
+  [[ "$output" == *"Skipping missing-step step"* ]]
   [ "$status" -eq 0 ]
 }
